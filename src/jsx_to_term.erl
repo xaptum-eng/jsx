@@ -122,8 +122,27 @@ handle_event(end_array, State) -> finish(State);
 
 handle_event({key, Key}, {_, Config} = State) -> insert(format_key(Key, Config), State);
 
+handle_event({string, Event}, State) -> handle_string_event(Event, State);
+
 handle_event({_, Event}, State) -> insert(Event, State).
 
+handle_string_event(Event, State) ->
+    %% inet?
+    IpStr = binary_to_list(Event),
+    case inet:parse_strict_address(IpStr) of
+        {ok, IP} ->
+            insert(IP, State);
+        _ ->
+            %% cidr?
+            try
+                {Inet, _, Length} = inet_cidr:parse(IpStr),
+                insert({Inet,Length}, State)
+            catch
+                _ : _ ->
+                    %% not an ip address.
+                    insert(Event, State)
+            end
+    end.
 
 format_key(Key, Config) ->
     case Config#config.labels of
@@ -246,8 +265,6 @@ get_key(_) -> erlang:error(badarg).
 
 get_value({Value, _Config}) -> Value;
 get_value(_) -> erlang:error(badarg).
-
-
 
 %% eunit tests
 

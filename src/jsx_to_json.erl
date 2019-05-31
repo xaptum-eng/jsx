@@ -118,8 +118,11 @@ encode(literal, Literal, _Config) ->
 encode(integer, Integer, _Config) ->
     erlang:integer_to_list(Integer);
 encode(float, Float, _Config) ->
-    io_lib:format("~p", [Float]).
-
+    io_lib:format("~p", [Float]);
+encode(inet, Inet, Config) ->
+    encode(string, unicode:characters_to_binary( inet:ntoa(Inet) ), Config);
+encode(cidr, {Inet,Length}, Config) ->
+    encode(string, unicode:characters_to_binary( io_lib:format("~s/~p",[inet:ntoa(Inet),Length]) ), Config).
 
 space(Config) ->
     case Config#config.space of
@@ -320,7 +323,7 @@ encode_test_() ->
         {"0.0", ?_assert(encode(float, 0.0, #config{}) =:= ["0.0"])},
         {"1.0", ?_assert(encode(float, 1.0, #config{}) =:= ["1.0"])},
         {"-1.0", ?_assert(encode(float, -1.0, #config{}) =:= ["-1.0"])},
-        {"3.1234567890987654321", 
+        {"3.1234567890987654321",
             ?_assert(
                 encode(float, 3.1234567890987654321, #config{}) =:= ["3.1234567890987655"])
         },
@@ -331,23 +334,23 @@ encode_test_() ->
         {"0.00000001", ?_assert(encode(float, 0.00000001, #config{}) =:= ["1.0e-8"])},
         {"1.0e-323", ?_assert(encode(float, 1.0e-323, #config{}) =:= ["1.0e-323"])},
         {"1.0e308", ?_assert(encode(float, 1.0e308, #config{}) =:= ["1.0e308"])},
-        {"min normalized float", 
+        {"min normalized float",
             ?_assert(
                 encode(float, math:pow(2, -1022), #config{}) =:= ["2.2250738585072014e-308"]
             )
         },
-        {"max normalized float", 
+        {"max normalized float",
             ?_assert(
-                encode(float, (2 - math:pow(2, -52)) * math:pow(2, 1023), #config{}) 
+                encode(float, (2 - math:pow(2, -52)) * math:pow(2, 1023), #config{})
                     =:= ["1.7976931348623157e308"]
             )
         },
-        {"min denormalized float", 
+        {"min denormalized float",
             ?_assert(encode(float, math:pow(2, -1074), #config{}) =:= ["5.0e-324"])
         },
-        {"max denormalized float", 
+        {"max denormalized float",
             ?_assert(
-                encode(float, (1 - math:pow(2, -52)) * math:pow(2, -1022), #config{}) 
+                encode(float, (1 - math:pow(2, -52)) * math:pow(2, -1022), #config{})
                     =:= ["2.225073858507201e-308"]
             )
         },
@@ -359,7 +362,26 @@ encode_test_() ->
         {"-1", ?_assert(encode(integer, -1, #config{}) =:= "-1")},
         {"true", ?_assert(encode(literal, true, #config{}) =:= "true")},
         {"false", ?_assert(encode(literal, false, #config{}) =:= "false")},
-        {"null", ?_assert(encode(literal, null, #config{}) =:= "null")}
+        {"null", ?_assert(encode(literal, null, #config{}) =:= "null")},
+
+        {"ipv4", ?_assert(encode(inet, {14,08,13,3}, #config{})
+            =:= [<<"\"">>, <<"14.8.13.3">>, <<"\"">>]
+        )},
+        {"cidr4", ?_assert(encode(cidr, {{14,08,13,3},12}, #config{})
+            =:= [<<"\"">>, <<"14.8.13.3/12">>, <<"\"">>]
+        )},
+        {"ipv6", ?_assert(encode(inet, {14,08,13,3,10,6543,176,22}, #config{})
+            =:= [<<"\"">>, <<"e:8:d:3:a:198f:b0:16">>, <<"\"">>]
+        )},
+        {"ipv6", ?_assert(encode(inet, {14,08,13,3,10,6543,0,0}, #config{})
+            =:= [<<"\"">>, <<"e:8:d:3:a:198f::">>, <<"\"">>]
+        )},
+        {"cidr6", ?_assert(encode(cidr, {{14,08,13,3,10,6543,176,22},64}, #config{})
+            =:= [<<"\"">>, <<"e:8:d:3:a:198f:b0:16/64">>, <<"\"">>]
+        )},
+        {"cidr6", ?_assert(encode(cidr, {{14,08,13,3,10,6543,0,0},64}, #config{})
+            =:= [<<"\"">>, <<"e:8:d:3:a:198f::/64">>, <<"\"">>]
+        )}
     ].
 
 
@@ -389,7 +411,7 @@ format_test_() ->
 custom_newline_test_() ->
     [
         {"single key object", ?_assert(
-            jsx:format(<<"{\"k\":\"v\"}">>, [space, {indent, 2}, {newline, <<$\r>>}]) 
+            jsx:format(<<"{\"k\":\"v\"}">>, [space, {indent, 2}, {newline, <<$\r>>}])
                 =:= <<"{\r  \"k\": \"v\"\r}">>)
         }
     ].

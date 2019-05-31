@@ -15,7 +15,8 @@
     {registered, []},
     {applications, [
         kernel,
-        stdlib
+        stdlib,
+        inet_cidr
     ]},
     {env, []},
     {files, [
